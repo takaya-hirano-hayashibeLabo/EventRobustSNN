@@ -1,3 +1,8 @@
+"""
+忘却ゲートと入力ゲートを同時に推定するモデルの学習
+"""
+
+
 from pathlib import Path
 import sys
 sys.path.append(str(Path(__file__).parent.parent))
@@ -12,8 +17,7 @@ from tqdm import tqdm
 import pandas as pd
 
 from utils import load_yaml,load_hdf5,get_minibatch,plot_results,cut_string_end,TERMINAL_WIDTH
-from src.beta_csnn import BetaCSNN
-
+from src.ersnn import ERSNN
 
 def main():
     parser = argparse.ArgumentParser()
@@ -40,7 +44,7 @@ def main():
     result_table_phase1=[]
 
     device = torch.device(f"cuda:{args.device}")
-    model=BetaCSNN(conf=model_conf,device=device)
+    model=ERSNN(conf=model_conf,device=device)
     model.to(device)  # ここでモデルをデバイスに移動
     optim=torch.optim.Adam(model.parameters(),lr=train_conf["lr"])
     criterion=SF.mse_count_loss(correct_rate=0.8, incorrect_rate=0.2)
@@ -64,7 +68,7 @@ def main():
             target=torch.Tensor(np.array(target)).to(device)
             data=torch.permute(data,(1,0,2,3,4)) #timestepを一番先頭次元に
 
-            out,_=model.forward(data,is_train_beta=True)
+            out,_=model.forward(data,is_beta=True,is_gamma=True)
             loss:torch.Tensor=criterion(out,target)
 
             optim.zero_grad()
@@ -102,7 +106,7 @@ def main():
                 target=torch.Tensor(np.array(target)).to(device)
                 data=torch.permute(data,(1,0,2,3,4)) #timestepを一番先頭次元に
 
-                out,_=model.forward(data,is_train_beta=False)
+                out,_=model.forward(data,is_beta=True,is_gamma=True)
                 acc=SF.accuracy_rate(out,target)
                 test_acc_list+=[acc]
                 loss:torch.Tensor=criterion(out,target)
@@ -152,8 +156,10 @@ def main():
     print(f"\033[96m{cut_string_end('PHASE2 TRAINING@CNN'+'='*200,TERMINAL_WIDTH)}\033[0m")
     result_table_phase2=[]
 
-    # optim=torch.optim.Adam(model.csnn.parameters(),lr=train_conf["lr"]) #???あれβ推定器更新してないじゃん うわー間違えてる...???
-    optim=torch.optim.Adam(model.cnn.parameters(),lr=train_conf["lr"]) #こっちが正しい
+    optim=torch.optim.Adam(
+        list(model.beta_cnn.parameters())+list(model.gamma_cnn.parameters()),
+        lr=train_conf["lr"]
+        )
 
     datadirs=[Path(train_conf["datapath"])/file_name for file_name in os.listdir(Path(train_conf["datapath"]))] #速度ごとのデータpath
     train_files=[os.listdir(datadir/"train") for datadir in datadirs]
@@ -187,7 +193,7 @@ def main():
             # print("data: ",data.shape,"target: ",target.shape)
 
 
-            out,_=model.forward(data,is_train_beta=True)
+            out,_=model.forward(data,is_beta=True,is_gamma=True)
             loss:torch.Tensor=criterion(out,target)
 
             optim.zero_grad()
@@ -232,7 +238,7 @@ def main():
                 target=torch.Tensor(np.array(target)).to(device)
                 data=torch.permute(data,(1,0,2,3,4)) #timestepを一番先頭次元に
 
-                out,_=model.forward(data,is_train_beta=True)
+                out,_=model.forward(data,is_beta=True,is_gamma=True)
                 acc=SF.accuracy_rate(out,target)
                 test_acc_list+=[acc]
                 loss:torch.Tensor=criterion(out,target)
