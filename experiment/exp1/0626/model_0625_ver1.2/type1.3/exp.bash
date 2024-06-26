@@ -1,0 +1,10 @@
+python exp.py --device 4 --target /mnt/ssd1/hiranotakaya/master/dev/workspace/prj_202407_2MR/time_robust_snn_prj/train/output/0625/ver1.2 --speed 1  --rate 1   --savepath 0626/model_0625_ver1.2/type1.3
+python exp.py --device 4 --target /mnt/ssd1/hiranotakaya/master/dev/workspace/prj_202407_2MR/time_robust_snn_prj/train/output/0625/ver1.2 --speed 5  --rate 1   --savepath 0626/model_0625_ver1.2/type1.3
+python exp.py --device 4 --target /mnt/ssd1/hiranotakaya/master/dev/workspace/prj_202407_2MR/time_robust_snn_prj/train/output/0625/ver1.2 --speed 10  --rate 1  --savepath 0626/model_0625_ver1.2/type1.3
+python exp.py --device 4 --target /mnt/ssd1/hiranotakaya/master/dev/workspace/prj_202407_2MR/time_robust_snn_prj/train/output/0625/ver1.2 --speed 15  --rate 1  --savepath 0626/model_0625_ver1.2/type1.3
+python exp.py --device 4 --target /mnt/ssd1/hiranotakaya/master/dev/workspace/prj_202407_2MR/time_robust_snn_prj/train/output/0625/ver1.2 --speed 20  --rate 1  --savepath 0626/model_0625_ver1.2/type1.3 
+python exp.py --device 4 --target /mnt/ssd1/hiranotakaya/master/dev/workspace/prj_202407_2MR/time_robust_snn_prj/train/output/0625/ver1.2 --speed 25  --rate 1  --savepath 0626/model_0625_ver1.2/type1.3
+python exp.py --device 4 --target /mnt/ssd1/hiranotakaya/master/dev/workspace/prj_202407_2MR/time_robust_snn_prj/train/output/0625/ver1.2 --speed 30  --rate 1  --savepath 0626/model_0625_ver1.2/type1.3
+python exp.py --device 4 --target /mnt/ssd1/hiranotakaya/master/dev/workspace/prj_202407_2MR/time_robust_snn_prj/train/output/0625/ver1.2 --speed 35  --rate 1  --savepath 0626/model_0625_ver1.2/type1.3
+python exp.py --device 4 --target /mnt/ssd1/hiranotakaya/master/dev/workspace/prj_202407_2MR/time_robust_snn_prj/train/output/0625/ver1.2 --speed 40  --rate 1  --savepath 0626/model_0625_ver1.2/type1.3
+python exp.py --device 4 --target /mnt/ssd1/hiranotakaya/master/dev/workspace/prj_202407_2MR/time_robust_snn_prj/train/output/0625/ver1.2 --speed 45  --rate 1  --savepath 0626/model_0625_ver1.2/type1.3

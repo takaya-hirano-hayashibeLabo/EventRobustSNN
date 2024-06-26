@@ -1,0 +1,14 @@
+{
+    "lstm": {
+        "acc_mean": 0.8461538461538461,
+        "acc_std": 0.0
+    },
+    "csnn": {
+        "acc_mean": 0.9423076923076923,
+        "acc_std": 0.0
+    },
+    "beta-snn": {
+        "acc_mean": 1.0,
+        "acc_std": 0.0
+    }
+}

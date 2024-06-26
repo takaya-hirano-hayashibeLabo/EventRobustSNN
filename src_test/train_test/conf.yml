@@ -1,0 +1,31 @@
+archi-config:
+  in_size: &in_size 32
+  in_channel: &in_channel 2
+  short_window: &short_window 5
+
+
+beta-csnn: 
+  in_size: *in_size
+  in_channel: *in_channel
+  out_channel: &out_channel 16
+  kernel: 3
+  stride: 1
+  padding: 1
+  pool_type: avg #poolingでサイズを半分にしてる
+  is_bn: True
+  mem_reset_type: subtract
+  mem_threshold: 1.0
+  beta_size: [*out_channel,16,16]
+  init_beta: 0.5
+
+
+# betaを推定するCNN
+cnn:
+  in_size: *in_size
+  in_channel: *short_window #beta推定時に注目するeventのtimestep
+  hiddens: [32,32,32]
+  out_channel: *out_channel
+  pool_type: avg 
+  is_bn: True
+  range_out: 0.5 #出力の最大・最小の絶対値
+  window: *short_window

@@ -1,0 +1,11 @@
+{
+    "target": "/mnt/ssd1/hiranotakaya/master/dev/workspace/prj_202407_2MR/time_robust_snn_prj/train/output/0625/ver1.2",
+    "device": "4",
+    "speed": [
+        5.0
+    ],
+    "rate": [
+        1.0
+    ],
+    "savepath": "0626/model_0625_ver1.2/type1.3"
+}

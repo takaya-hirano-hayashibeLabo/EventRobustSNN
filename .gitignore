@@ -1,0 +1,16 @@
+*.pth
+*.csv
+*.png
+*.svg
+*.mp4
+*.pyc
+__pycache__
+framedata
+original_data
+*.gz
+*.npy
+*.zip
+*.bin
+*.h5
+*.hdf5
+cache

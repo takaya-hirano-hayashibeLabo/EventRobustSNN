@@ -1,0 +1,26 @@
+
+# train configは全モデル共通
+train:
+  in_size: &in_size 32
+  in_channel: &in_channel 2
+  time_sequence: 100 #時系列は100step分(別に学習では使わない)
+  batch: 256
+  epoch: 20
+  iter: 1 #ここは-1にするとmaxまで
+  lr: 0.001
+  save_interval: 5 #epochごと
+  datapath: /mnt/ssd1/hiranotakaya/master/dev/workspace/prj_202407_2MR/time_robust_snn_prj/framedata/NMNIST_v1.1 #1倍と2倍のデータのみ
+  event_timewindow: 1400 #event_timewindowごとにeventをframe変換する (データ作るときのtoFrameの引数)
+
+
+model:
+  crnn: #分類を行うCRNN
+    in_size: *in_size
+    in_channel: *in_channel
+    out_size: 10 #分類するクラス数
+    hiddens: [16,32,64]
+    linear_hidden: 256 #flattenした後の線形層
+    linear_num: 3 #リカレント層を何層にするか
+    pool_type: avg 
+    is_bn: True
+    dropout_rate: 0.3
