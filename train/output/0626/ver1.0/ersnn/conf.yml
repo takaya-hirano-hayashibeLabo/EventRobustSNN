@@ -3,7 +3,7 @@
 train:
   in_size: &in_size 32
   in_channel: &in_channel 2
-  time_sequence: 100 #時系列は100step分(別に学習では使わない)
+  time_sequence: 100 #時系列は100step分(別にスクリプト上では使わない)
   batch: 160
   epoch: 20
   iter: -1 #ここは-1にするとmaxまで

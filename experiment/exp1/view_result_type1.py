@@ -29,17 +29,13 @@ def main():
                 results_data = json.load(f)
             with open(args_path, 'r') as f:
                 args_data = json.load(f)
-            data_table.append({
-                # 'dir_name': dir_name,
-                'speed': args_data['speed'][0],  # speedの最初の値を取得
-                'lstm_acc_mean': results_data['lstm']['acc_mean'],
-                'lstm_acc_std': results_data['lstm']['acc_std'],
-                'csnn_acc_mean': results_data['csnn']['acc_mean'],
-                'csnn_acc_std': results_data['csnn']['acc_std'],
-                'beta_snn_acc_mean': results_data['beta-snn']['acc_mean'],
-                'beta_snn_acc_std': results_data['beta-snn']['acc_std']
-            })
-    
+            data_entry = {'speed': args_data['speed'][0]}  # speedの最初の値を取得
+            for key, value in results_data.items():
+                data_entry[f'{key}_acc_mean'] = value['acc_mean']
+                data_entry[f'{key}_acc_std'] = value['acc_std']
+            data_table.append(data_entry)
+
+
     # pandasのDataFrameに変換
     df = pd.DataFrame(data_table)
     df=df.sort_values(by='speed')
@@ -47,23 +43,12 @@ def main():
 
     # speedが1.0の行を取得
     base_row = df[df['speed'] == 1.0].iloc[0]
-    base_lstm_acc_mean = base_row['lstm_acc_mean']
-    base_lstm_acc_std = base_row['lstm_acc_std']
-    base_csnn_acc_mean = base_row['csnn_acc_mean']
-    base_csnn_acc_std = base_row['csnn_acc_std']
-    base_beta_snn_acc_mean = base_row['beta_snn_acc_mean']
-    base_beta_snn_acc_std = base_row['beta_snn_acc_std']
-
-    # 新しいテーブルを作成
     df_normalized = df.copy()
-    df_normalized['lstm_acc_mean'] = df['lstm_acc_mean'] / base_lstm_acc_mean
-    df_normalized['csnn_acc_mean'] = df['csnn_acc_mean'] / base_csnn_acc_mean
-    df_normalized['beta_snn_acc_mean'] = df['beta_snn_acc_mean'] / base_beta_snn_acc_mean
-
-    # 誤差伝播の法則を利用して標準偏差を計算
-    df_normalized['lstm_acc_std'] = df_normalized['lstm_acc_mean'] * ((df['lstm_acc_std'] / df['lstm_acc_mean'])**2 + (base_lstm_acc_std / base_lstm_acc_mean)**2)**0.5
-    df_normalized['csnn_acc_std'] = df_normalized['csnn_acc_mean'] * ((df['csnn_acc_std'] / df['csnn_acc_mean'])**2 + (base_csnn_acc_std / base_csnn_acc_mean)**2)**0.5
-    df_normalized['beta_snn_acc_std'] = df_normalized['beta_snn_acc_mean'] * ((df['beta_snn_acc_std'] / df['beta_snn_acc_mean'])**2 + (base_beta_snn_acc_std / base_beta_snn_acc_mean)**2)**0.5
+    for key in results_data.keys():
+        base_acc_mean = base_row[f'{key}_acc_mean']
+        base_acc_std = base_row[f'{key}_acc_std']
+        df_normalized[f'{key}_acc_mean'] = df[f'{key}_acc_mean'] / base_acc_mean
+        df_normalized[f'{key}_acc_std'] = df_normalized[f'{key}_acc_mean'] * ((df[f'{key}_acc_std'] / df[f'{key}_acc_mean'])**2 + (base_acc_std / base_acc_mean)**2)**0.5
 
     print("Normalized DataFrame:")
     print(df_normalized)
@@ -82,31 +67,16 @@ def main():
     plt.figure(figsize=(10, 6))
     cmap = matplotlib.colormaps.get_cmap('viridis')
 
-    # LSTM
-    plt.plot(df_normalized['speed'], df_normalized['lstm_acc_mean'], label='LSTM', color=cmap(0.1), linestyle='-.')
-    plt.fill_between(df_normalized['speed'], 
-                     df_normalized['lstm_acc_mean'] - df_normalized['lstm_acc_std'], 
-                     df_normalized['lstm_acc_mean'] + df_normalized['lstm_acc_std'], 
-                     color=cmap(0.1), alpha=0.2)
-
-    # CSNN
-    plt.plot(df_normalized['speed'], df_normalized['csnn_acc_mean'], label='CSNN', color=cmap(0.5), linestyle='--')
-    plt.fill_between(df_normalized['speed'], 
-                     df_normalized['csnn_acc_mean'] - df_normalized['csnn_acc_std'], 
-                     df_normalized['csnn_acc_mean'] + df_normalized['csnn_acc_std'], 
-                     color=cmap(0.5), alpha=0.2)
-
-    # Beta-SNN
-    plt.plot(df_normalized['speed'], df_normalized['beta_snn_acc_mean'], label='Beta-SNN', color=cmap(0.9), linestyle='-')
-    plt.fill_between(df_normalized['speed'], 
-                     df_normalized['beta_snn_acc_mean'] - df_normalized['beta_snn_acc_std'], 
-                     df_normalized['beta_snn_acc_mean'] + df_normalized['beta_snn_acc_std'], 
-                     color=cmap(0.9), alpha=0.2)
-    
+    for i, key in enumerate(results_data.keys()):
+        plt.plot(df_normalized['speed'], df_normalized[f'{key}_acc_mean'], label=key.upper(), color=cmap(i / len(results_data)), linestyle='-')
+        plt.fill_between(df_normalized['speed'], 
+                         df_normalized[f'{key}_acc_mean'] - df_normalized[f'{key}_acc_std'], 
+                         df_normalized[f'{key}_acc_mean'] + df_normalized[f'{key}_acc_std'], 
+                         color=cmap(i / len(results_data)), alpha=0.2)
 
     plt.xlabel('Speed')
     plt.ylabel('Normalized Accuracy')
-    plt.ylim(0, 1)  # y軸の範囲を0から1に設定
+    plt.ylim(0, 1.1)  # y軸の範囲を0から1に設定
     plt.title('Normalized Accuracy vs Speed')
     plt.legend()
     plt.grid(True)

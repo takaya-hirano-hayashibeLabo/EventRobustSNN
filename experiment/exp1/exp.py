@@ -20,6 +20,7 @@ from utils import change_speed_v2,event2anim,get_random_subset,save_args,ListNMN
 from src.beta_csnn import BetaCSNN
 from src.csnn import CSNN
 from src.crnn import CLSTM
+from src.ersnn import ERSNN 
 
 
 class RandomBatchSampler:
@@ -183,15 +184,15 @@ def main():
         if "beta" in dir_name.casefold() and "snn".casefold() in dir_name:
             config=load_yaml(str(Path(args.target)/dir_name/"conf.yml"))["model"]
             beta_snn=BetaCSNN(config,device=device).to(device)
-            beta_snn.load_state_dict(torch.load(str(Path(args.target)/dir_name/"result/phase2_models/model_final.pth")))
+            beta_snn.load_state_dict(torch.load(str(Path(args.target)/dir_name/"result/phase2_models/model_final.pth"),map_location=device))
             beta_snn.eval()
             models["beta-snn"]={"model":beta_snn}
             models["beta-snn"]["acc"]=[]
 
-        elif "snn".casefold() in dir_name and not "beta".casefold() in dir_name:
+        elif "snn".casefold() in dir_name and not "beta".casefold() in dir_name and not "er".casefold() in dir_name:
             config=load_yaml(str(Path(args.target)/dir_name/"conf.yml"))["model"]["csnn"]
             csnn=CSNN(conf=config).to(device)
-            csnn.load_state_dict(torch.load(str(Path(args.target)/dir_name/"result/models/model_final.pth")))
+            csnn.load_state_dict(torch.load(str(Path(args.target)/dir_name/"result/models/model_final.pth"),map_location=device))
             csnn.eval()
             models["csnn"]={"model":csnn}
             models["csnn"]["acc"]=[]
@@ -199,10 +200,18 @@ def main():
         elif "lstm".casefold() in dir_name or "rnn".casefold() in dir_name: 
             config=load_yaml(str(Path(args.target)/dir_name/"conf.yml"))["model"]["crnn"]
             lstm=CLSTM(config).to(device)
-            lstm.load_state_dict(torch.load(str(Path(args.target)/dir_name/"result/models/model_final.pth")))
+            lstm.load_state_dict(torch.load(str(Path(args.target)/dir_name/"result/models/model_final.pth"),map_location=device))
             lstm.eval()
             models["lstm"]={"model":lstm}
             models["lstm"]["acc"]=[]
+
+        elif "ersnn".casefold() in dir_name:
+            config=load_yaml(str(Path(args.target)/dir_name/"conf.yml"))["model"]
+            beta_snn=ERSNN(config,device=device).to(device)
+            beta_snn.load_state_dict(torch.load(str(Path(args.target)/dir_name/"result/phase2_models/model_final.pth")))
+            beta_snn.eval()
+            models["ersnn"]={"model":beta_snn}
+            models["ersnn"]["acc"]=[]
     #<< モデルの準備 <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 
@@ -221,7 +230,7 @@ def main():
 
             for key,item in models.items():
                 if key=="beta-snn":
-                    out,_=item["model"].forward(inputs,is_train_beta=False)
+                    out,_=item["model"].forward(inputs,is_train_beta=True)
                     item["acc"]+=[SF.accuracy_rate(out,target)]
                 elif key=="csnn":
                     out,_=item["model"](inputs)
@@ -231,6 +240,9 @@ def main():
                     out=torch.squeeze(out)
                     target=target.long()
                     item["acc"]+=[calculate_accuracy(out,target)]
+                elif key=="ersnn":
+                    out,_=item["model"].forward(inputs,is_beta=True,is_gamma=True)
+                    item["acc"]+=[SF.accuracy_rate(out,target)]
 
     print("\033[92mdone\033[0m")
     #<< テスト <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<

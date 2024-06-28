@@ -151,7 +151,9 @@ class BetaCSNN(nn.Module):
             betas=[]
 
             # CNNに入力するためにspikeの形式を変換する
-            x=spike[:,:,0]-spike[:,:,1] #positive eventとnegative eventを1次元で表現する (CNNだからこれでいい)
+            # positive eventとnegative eventを1次元で表現する
+            # この式によって, 00->-1, 10->0.5, 01->-05, 11->1の4状態に連続な式で変換できる
+            x=1.5*spike[:,:,0]+0.5*spike[:,:,1]-1 
        
             for t in range(T):
                 if t < self.cnn_window:
@@ -193,3 +195,31 @@ class BetaCSNN(nn.Module):
 
         
         return fin_spikes,fin_potentials
+
+
+    def get_internal_params(self,spike):
+        T,batch,_,_,_=spike.shape #spikeの全体時間とバッチサイズ
+        # print("spike shape: ",spike.shape)
+
+
+        #>> CNNによるbetaの推論 >>
+        betas=[]
+
+        # CNNに入力するためにspikeの形式を変換する
+        # positive eventとnegative eventを1次元で表現する
+        # この式によって, 00->-1, 10->0.5, 01->-05, 11->1の4状態に連続な式で変換できる
+        x=1.5*spike[:,:,0]+0.5*spike[:,:,1]-1 
+    
+        for t in range(T):
+            if t < self.cnn_window:
+                padded_x = torch.cat([torch.zeros(self.cnn_window - t, *x.shape[1:]).to(self.device), x[:t]], dim=0)
+            else:
+                padded_x = x[t-self.cnn_window:t]
+            padded_x=torch.permute(padded_x,dims=(1,0,2,3)) #[timestep x batch x h x w] -> [batch x timestep x h x w] 時間軸をチャンネルと捉える
+            beta = self.cnn_range_out*self.cnn.forward(padded_x)
+            betas.append(beta)
+        betas=self.snn_init_beta+torch.stack(betas,dim=0) #推論したbetaの差分と基本betaを足し合わせる
+
+        #<< CNNによるbetaの推論 <<
+
+        return betas

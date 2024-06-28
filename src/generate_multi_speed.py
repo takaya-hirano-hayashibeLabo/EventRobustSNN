@@ -235,21 +235,35 @@ def generate_multi_dataset():
         print("\033[92mdone\033[0m")
 
 
-def generate_multi_dataframe():
+def generate_multi_dataframe(datatype:str,data_rate:float):
     """
     frameデータとして保存する関数  
     学習時はミニバッチごとにディレクトリから集める  
     そうしないと, データがでかすぎてメモリが死ぬ
     """
-    sensor_size = tonic.datasets.NMNIST.sensor_size
 
     original_datapath=str(Path(__file__).parent.parent/"original_data")
-    data_rate=0.1 #データがでかすぎるので10%のデータとする
+    if datatype.casefold()=="NMNIST".casefold():
+        sensor_size = tonic.datasets.NMNIST.sensor_size
+        trainset = tonic.datasets.NMNIST(save_to=original_datapath, train=True)
+        testset = tonic.datasets.NMNIST(save_to=original_datapath,  train=False)
 
-    trainset = tonic.datasets.NMNIST(save_to=original_datapath, train=True)
+    elif datatype.casefold()=="DVSGesture".casefold():
+        sensor_size=tonic.datasets.DVSGesture.sensor_size
+        trainset = tonic.datasets.DVSGesture(save_to=original_datapath, train=True)
+        testset =  tonic.datasets.DVSGesture(save_to=original_datapath,  train=False)
+
+    else:
+        print(f"unkown datatype '{datatype}'...")
+        exit(1)
+
+    print(len(trainset))
+    print(trainset[0][0].shape)
+
     trainset=get_random_subset(trainset,data_rate) #データを間引く
-    testset = tonic.datasets.NMNIST(save_to=original_datapath,  train=False)
     testset=get_random_subset(testset,data_rate) #データを間引く
+
+    # exit(1)
 
     transform=transforms.Compose([
             transforms.Denoise(filter_time=10000),
@@ -293,11 +307,9 @@ def generate_multi_dataframe():
             if data.shape[0]>window_size:
                 window_data=create_windows(data,window_size,overlap=int(window_size/2))
                 for d in window_data:
-                    # np.save(savepath_a / f"data{count}.npy", {'events': d, 'target': target},allow_pickle=True)
                     save_to_hdf5(savepath_a / f"data{count}.h5",d,target)
                     count+=1
             else:
-                # np.save(savepath_a / f"data{count}.npy", {'events': data, 'target': target},allow_pickle=True)
                 save_to_hdf5(savepath_a / f"data{count}.h5",data,target)
                 count+=1
 
@@ -409,10 +421,30 @@ def test():
     print(f"target: {target}")
 
 
+def main():
+    import argparse
+    import json
+
+    parser=argparse.ArgumentParser()
+    parser.add_argument("--datatype",default="NMNIST")
+    parser.add_argument("--data_rate",default=0.1,type=float)
+    args=parser.parse_args()
+
+
+    # Save args to a JSON file
+    args_dict = vars(args)
+    savepath=Path(__file__).parent.parent / "framedata"
+    with open(savepath/'args.json', 'w') as f:
+        json.dump(args_dict, f, indent=4)
+
+
+    generate_multi_dataframe(args.datatype,args.data_rate)
+
+
 if __name__=="__main__":
     # test()
     # generate_multi_dataset()
-    generate_multi_dataframe()
+    main()
 
     # data=load_from_hdf5("/mnt/ssd1/hiranotakaya/master/dev/workspace/prj_202407_2MR/time_robust_snn_prj/framedata/speed_0.5_times/test/data0.h5")
     # print(data)
