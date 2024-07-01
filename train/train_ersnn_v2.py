@@ -41,7 +41,8 @@ def main():
     device = torch.device(f"cuda:{args.device}")
     model=ERSNNv2(conf=model_conf,device=device)
     model.to(device)  # ここでモデルをデバイスに移動
-    criterion=SF.ce_rate_loss()
+    criterion=SF.ce_rate_loss() 
+    # criterion=SF.mse_count_loss(correct_rate=0.8,incorrect_rate=0.2) #こっちのほうが精度出る気がする
 
 
     #>> phase2. CNNの学習 >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>

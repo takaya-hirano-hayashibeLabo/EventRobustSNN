@@ -128,6 +128,7 @@ class ERSNNv2(nn.Module):
         #>> 線形層 >>
         self.linear4lstm=nn.Sequential(
             nn.Linear(in_features=self.beta_lstm_hidden,out_features=1),
+            # nn.Conv1d(in_channels=self.beta_lstm_hidden,out_channels=1,kernel_size=1),
             nn.Tanh() #モデルの出力は-1~1に絞る
         )
         #>> 線形層 >>
@@ -246,8 +247,19 @@ class ERSNNv2(nn.Module):
                 )
             out_cnn=torch.stack(out_cnn)
             out_lstm,_=self.lstm(torch.flatten(out_cnn,start_dim=2)) #[timestep x batch x dim]
-            out_lstm=out_lstm.view(-1,self.beta_lstm_hidden) #一旦時系列をflatten
-            betas=self.snn_init_beta+self.beta_lstm_range_out*self.linear4lstm(out_lstm).view(T,batch,-1) #betaを推定し, 時系列とbatchを分離
+
+
+            #>> 最終層がConv1dの時 >>
+            out_lstm=torch.permute(out_lstm,(1,2,0)) #-> [batch x dim x timestep]
+            dbeta=torch.permute(self.linear4lstm(out_lstm),(2,0,1)) #-> [timestep x batch x 1]
+            betas=self.snn_init_beta+self.beta_lstm_range_out*dbeta
+            #<< 最終層がConv1dの時 <<
+
+
+            #>> 最終層がlinearのとき >>
+            # out_lstm=out_lstm.view(-1,self.beta_lstm_hidden) #一旦時系列をflatten
+            # betas=self.snn_init_beta+self.beta_lstm_range_out*self.linear4lstm(out_lstm).view(T,batch,-1) #betaを推定し, 時系列とbatchを分離
+            #<< 最終層がlinearのとき <<
 
         elif not is_beta:
             betas=self.snn_init_beta #学習しないときは初期値のまま
@@ -301,7 +313,7 @@ class ERSNNv2(nn.Module):
 
 
 
-    def get_internal_params(self,spike):
+    def get_internal_params(self,spike,is_beta=True,is_gamma=True):
         """
         :param spike: [timesteps x batch x in_c x in_h x in_w]
         :return betas: [timesteps x batch x out_c x out_h x out_w]
@@ -319,21 +331,27 @@ class ERSNNv2(nn.Module):
         # この式によって, 00->-1, 10->0.5, 01->-05, 11->1の4状態に連続な式で変換できる
         x=1.5*spike[:,:,0]+0.5*spike[:,:,1]-1 
 
-        out_cnn=[]
-        for t in range(T):
-            if t < self.beta_lstm_window:
-                padded_x = torch.cat([torch.zeros(self.beta_lstm_window - t, *x.shape[1:]).to(self.device), x[:t]], dim=0)
-            else:
-                padded_x = x[t-self.beta_lstm_window:t]
-            padded_x=torch.permute(padded_x,dims=(1,0,2,3)) #[window x batch x h x w] -> [batch x window x h x w] 時間軸をチャンネルと捉える
-            out_cnn.append(
-                self.cnn4lstm(padded_x)
-            )
-        out_cnn=torch.stack(out_cnn)
-        out_lstm,_=self.lstm(out_cnn) #[timestep x batch x dim]
-        out_lstm=out_lstm.view(-1,self.beta_lstm_hidden) #一旦時系列をflatten
-        betas=self.linear4lstm(out_lstm).view(T,batch,-1) #betaを推定し, 時系列とbatchを分離
+        betas=[]
+        if is_beta:
+            out_cnn=[]
+            for t in range(T):
+                if t < self.beta_lstm_window:
+                    padded_x = torch.cat([torch.zeros(self.beta_lstm_window - t, *x.shape[1:]).to(self.device), x[:t]], dim=0)
+                else:
+                    padded_x = x[t-self.beta_lstm_window:t]
+                padded_x=torch.permute(padded_x,dims=(1,0,2,3)) #[window x batch x h x w] -> [batch x window x h x w] 時間軸をチャンネルと捉える
+                out_cnn.append(
+                    self.cnn4lstm(padded_x)
+                )
+            out_cnn=torch.stack(out_cnn)
+            out_lstm,_=self.lstm(torch.flatten(out_cnn,start_dim=2)) #[timestep x batch x dim]
 
+            # out_lstm=torch.permute(out_lstm,(1,2,0)) #-> [batch x dim x timestep]
+            # dbeta=torch.permute(self.linear4lstm(out_lstm),(2,0,1)) #-> [timestep x batch x 1]
+            # betas=self.snn_init_beta+self.beta_lstm_range_out*dbeta
+
+            out_lstm=out_lstm.view(-1,self.beta_lstm_hidden) #一旦時系列をflatten
+            betas=self.snn_init_beta+self.beta_lstm_range_out*self.linear4lstm(out_lstm).view(T,batch,-1) #betaを推定し, 時系列とbatchを分離
         #<< lstmによるbetaの推論 <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 
@@ -341,10 +359,11 @@ class ERSNNv2(nn.Module):
         #>> CNNによるgammaの推論 >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
         gammas=[]
 
-        for t in range(T):
-            gamma=self.gamma_cnn.forward(spike[t]) #その時間だけ見ればいい
-            gammas.append(gamma)
-        gammas=torch.stack(gammas,dim=0) #[T x batch x out_c x out_h x out_w]
+        if is_gamma:
+            for t in range(T):
+                gamma=self.gamma_cnn.forward(spike[t]) #その時間だけ見ればいい
+                gammas.append(gamma)
+            gammas=torch.stack(gammas,dim=0) #[T x batch x out_c x out_h x out_w]
         #<< CNNによるgammaの推論 <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 

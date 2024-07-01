@@ -60,13 +60,14 @@ def change_speed_trj(events,alpha_trj):
     return new_events
 
 
-def change_speed_v2(event, params:list):
+def change_speed_v2(event, params:list,is_return_speed_trj=False):
     """
     指定した速度とフレーム比でイベントスピードを変換する
 
     :param event: [(pixel_x, pixel_y, timestep, spike), ...]
     :param params: [{speed, rate},...]   
                     ex) [{"speed":2.0, "rate":1.0},{"speed":0.5, "rate":1.0}]
+    :param is_return_speed_trj: Trueにすると速度倍率のリストが返ってくる
     """
 
 
@@ -102,7 +103,11 @@ def change_speed_v2(event, params:list):
         new_event[i][2]=new_event[0][2]+sum(dts[:i])
     #<< 速度変換 <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-    return new_event
+    if not is_return_speed_trj:
+        return new_event
+    
+    elif is_return_speed_trj:
+        return new_event,speed_trj
 
     
 
@@ -158,6 +163,7 @@ def event2anim(events, time_window, max_x, max_y, output_path=Path(__file__).par
     # Determine the maximum timestep
     max_t = events[-1][2] + 1
 
+    frame_number=1
     for frame_start in range(0, max_t, time_window):
         frame_end = frame_start + time_window
 
@@ -174,6 +180,9 @@ def event2anim(events, time_window, max_x, max_y, output_path=Path(__file__).par
                     for j in range(scale_factor):
                         frame[scaled_y + i, scaled_x + j] = color
 
+        cv2.putText(frame, f'Frame: {frame_number}', (scaled_max_x - 110, 30), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
+        
         # Normalize the grayscale frame
         norm = Normalize(vmin=0, vmax=1)
         frame_normalized = norm(frame)
@@ -186,6 +195,8 @@ def event2anim(events, time_window, max_x, max_y, output_path=Path(__file__).par
 
         # Write the frame to the video
         out.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
+
+        frame_number+=1
 
     # Release the video writer object
     out.release()

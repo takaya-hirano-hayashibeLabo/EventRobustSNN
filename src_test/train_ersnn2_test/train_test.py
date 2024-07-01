@@ -97,8 +97,8 @@ net.to(device)
 
 
 #>> 学習 >>
-optimizer = torch.optim.Adam(net.parameters(), lr=2e-2, betas=(0.9, 0.999))
-loss_fn = SF.ce_rate_loss()
+optimizer = torch.optim.Adam(net.parameters(), lr=0.001, betas=(0.9, 0.999))
+loss_fn = SF.ce_count_loss()
 num_epochs = 10
 num_iters = 50
 

@@ -1,0 +1,66 @@
+# configに全モデルのconfを書く
+
+train:
+  in_size: &in_size 32
+  in_channel: &in_channel 2
+  time_sequence: 100 #時系列は100step分(別にtrainスクリプト上では使わない)
+  batch: 256
+  epoch: 40
+  iter: -1 #ここは-1にするとmaxまで
+  lr: 0.0001
+  save_interval: 10 #epochごと
+  datapath: /mnt/ssd1/hiranotakaya/master/dev/workspace/prj_202407_2MR/time_robust_snn_prj/framedata/NMNIST
+  event_timewindow: 1400 #event_timewindowごとにeventをframe変換する (データ作るときのtoFrameの引数)
+
+
+model:
+  ersnn: 
+    in_size: *in_size
+    in_channel: *in_channel
+    out_channel: &out_channel 16
+    kernel: 3
+    stride: 1
+    padding: 1
+    pool_type: avg #poolingでサイズを半分にしてる
+    is_bn: True
+    mem_reset_type: subtract
+    mem_threshold: 1.0
+    beta_in: &beta_in 16 #betaのサイズ
+    gamma_size: [*out_channel,*beta_in,*beta_in]
+    init_beta: 0.5
+
+
+  beta-lstm: #時定数betaを推定するモデル (忘却ゲート推定モデル)
+    window: &window 3 #beta推定時に注目するeventのtimestep
+    in_size: *in_size
+    in_channel: *window 
+    cnn_hiddens: [8,12]
+    pool_type: avg 
+    is_bn: True
+    dropout_rate: 0.2
+    lstm_hidden: 256
+    lstm_num: 3
+    range_out: 0.5 #出力の最大・最小の絶対値
+
+
+  gamma-cnn: #膜抵抗γを推定するモデル (入力ゲート推定モデル)
+    in_size: *in_size
+    in_channel: 2 #positiveとnegativeで2つ
+    hiddens: [32,32]
+    out_channel: *out_channel
+    pool_type: avg 
+    is_bn: True
+    dropout_rate: 0.2
+  
+
+  snn: #分類を行うSNN
+    in_size: *beta_in
+    in_channel: *out_channel
+    out_size: 10 #分類するクラス数
+    hiddens: [32,64]
+    linear_hidden: 256 #flattenした後の線形層
+    pool_type: avg 
+    is_bn: True
+    beta: 0.5
+    mem_threshold: 1.0
+    dropout_rate: 0.2

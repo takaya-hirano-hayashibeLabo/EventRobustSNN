@@ -21,6 +21,7 @@ from src.beta_csnn import BetaCSNN
 from src.csnn import CSNN
 from src.crnn import CLSTM
 from src.ersnn import ERSNN 
+from src.ersnn_v2 import ERSNNv2
 
 
 class RandomBatchSampler:
@@ -207,7 +208,10 @@ def main():
 
         elif "ersnn".casefold() in dir_name:
             config=load_yaml(str(Path(args.target)/dir_name/"conf.yml"))["model"]
-            beta_snn=ERSNN(config,device=device).to(device)
+            if "beta-cnn" in config.keys():
+                beta_snn=ERSNN(config,device=device).to(device)
+            elif "beta-lstm" in config.keys():
+                beta_snn=ERSNNv2(config,device=device).to(device)
             beta_snn.load_state_dict(torch.load(str(Path(args.target)/dir_name/"result/phase2_models/model_final.pth")))
             beta_snn.eval()
             models["ersnn"]={"model":beta_snn}
