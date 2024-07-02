@@ -213,12 +213,24 @@ class ERSNNv2(nn.Module):
 
 
 
+        #>> 目的関数のハイパラ設定 >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+        if "loss-param" in conf.keys():
+            loss_conf=conf["loss-param"]
+            self.a1=loss_conf["alpha1"] #lossβの係数
+            self.a2=loss_conf["alpha2"] #lossγの係数
+            self.rho_mean=loss_conf["rho-mean"] #平均イベント密度
+            self.rho_max=loss_conf["rho-max"] #最大イベント密度
+            self.gamma_max=loss_conf["gamma-max"] #γの最大平均値
+        #<< 目的関数のハイパラ設定 <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-    def forward(self,spike,is_beta=False,is_gamma=False):
+
+
+    def forward(self,spike,is_beta=False,is_gamma=False, return_internal_param=False):
         """
         :param spike: [timesteps x batch x in_c x in_h x in_w]
         :param is_beta: beta調整するかどうか
         :param is_gamma: gamma調整するかどうか
+        :return internal_param: beta, gammaをreturnするかどうか. ver2.1から常にTrue
         :return out_spikes: [timesteps x batch x out_c x out_h x out_w]
         :return out_potentials: [timesteps x batch x out_c x out_h x out_w]
         """
@@ -308,9 +320,45 @@ class ERSNNv2(nn.Module):
         #<< csnnによる最終的な推論 <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 
-        
-        return fin_spikes,fin_potentials
+        if not return_internal_param:
+            return fin_spikes,fin_potentials
 
+        elif return_internal_param:
+            return fin_spikes, fin_potentials, betas, gammas
+
+
+
+    def loss_func(self,in_spike:torch.Tensor,out_spike,target,criterion,beta,gamma:torch.Tensor):
+        """
+        '予測誤差 + β特性誤差 + γ特性誤差' を計算する
+        特性誤差は精度には無関係であり、イベント密度とβ、γに線形性をもたせるための関数
+
+        :param in_spike: 入力スパイクそのもの [ts x batch x c(2) x h x w]
+        :param out_spike: [ts x batch x class]
+        :param target: [batch]
+        :param criterion: 予測誤差関数. mseとかcrossentropyとか
+        :param beta: 推定したβ [ts x batch]
+        :param gamma: 推定したγ [ts x batch x c x h x w]
+        :return <dict> result: {'loss_pred', 'loss_beta', 'loss_gamma'}
+        """
+
+        loss_pred:torch.Tensor=criterion(out_spike,target)
+
+        #>> ここの次元操作が上手く行ってない >>
+        rho=torch.mean(in_spike,(1,in_spike.ndim-1)) #timestepごとの空間イベント密度を計算
+        #>> ここの次元操作が上手く行ってない >>
+
+        print("rho shape: ",rho.shape)
+        loss_beta:torch.Tensor=self.a1* torch.mean( (beta-self.beta_lstm_range_out*(1-rho/self.rho_mean))**2 )
+        loss_gamma=self.a2* torch.mean( ( torch.mean(gamma, (1,gamma.ndim-1)) - self.gamma_max*(1-rho/self.rho_max) )**2 )
+
+        result={
+            "loss_pred":loss_pred,
+            "loss_beta":loss_beta,
+            "loss_gamma":loss_gamma
+        }
+
+        return result
 
 
     def get_internal_params(self,spike,is_beta=True,is_gamma=True):

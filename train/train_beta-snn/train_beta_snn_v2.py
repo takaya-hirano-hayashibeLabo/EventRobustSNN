@@ -8,7 +8,7 @@ v2ではSNNの学習と、beta推定を1つのプロセスにまとめた
 
 from pathlib import Path
 import sys
-sys.path.append(str(Path(__file__).parent.parent))
+sys.path.append(str(Path(__file__).parent.parent.parent))
 
 import torch
 import argparse
