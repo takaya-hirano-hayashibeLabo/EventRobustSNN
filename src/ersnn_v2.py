@@ -127,8 +127,8 @@ class ERSNNv2(nn.Module):
 
         #>> 線形層 >>
         self.linear4lstm=nn.Sequential(
-            nn.Linear(in_features=self.beta_lstm_hidden,out_features=1),
-            # nn.Conv1d(in_channels=self.beta_lstm_hidden,out_channels=1,kernel_size=1),
+            # nn.Linear(in_features=self.beta_lstm_hidden,out_features=1),
+            nn.Conv1d(in_channels=self.beta_lstm_hidden,out_channels=1,kernel_size=1),
             nn.Tanh() #モデルの出力は-1~1に絞る
         )
         #>> 線形層 >>
@@ -346,12 +346,12 @@ class ERSNNv2(nn.Module):
             out_cnn=torch.stack(out_cnn)
             out_lstm,_=self.lstm(torch.flatten(out_cnn,start_dim=2)) #[timestep x batch x dim]
 
-            # out_lstm=torch.permute(out_lstm,(1,2,0)) #-> [batch x dim x timestep]
-            # dbeta=torch.permute(self.linear4lstm(out_lstm),(2,0,1)) #-> [timestep x batch x 1]
-            # betas=self.snn_init_beta+self.beta_lstm_range_out*dbeta
+            out_lstm=torch.permute(out_lstm,(1,2,0)) #-> [batch x dim x timestep]
+            dbeta=torch.permute(self.linear4lstm(out_lstm),(2,0,1)) #-> [timestep x batch x 1]
+            betas=self.snn_init_beta+self.beta_lstm_range_out*dbeta
 
-            out_lstm=out_lstm.view(-1,self.beta_lstm_hidden) #一旦時系列をflatten
-            betas=self.snn_init_beta+self.beta_lstm_range_out*self.linear4lstm(out_lstm).view(T,batch,-1) #betaを推定し, 時系列とbatchを分離
+            # out_lstm=out_lstm.view(-1,self.beta_lstm_hidden) #一旦時系列をflatten
+            # betas=self.snn_init_beta+self.beta_lstm_range_out*self.linear4lstm(out_lstm).view(T,batch,-1) #betaを推定し, 時系列とbatchを分離
         #<< lstmによるbetaの推論 <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 

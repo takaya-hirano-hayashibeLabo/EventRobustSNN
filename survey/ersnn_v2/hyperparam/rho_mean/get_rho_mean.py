@@ -1,6 +1,9 @@
+# 1倍速のときの平均イベント密度を調査
+
 from pathlib import Path
 import sys
-sys.path.append(str(Path(__file__).parent.parent))
+ROOT=Path(__file__).parent.parent.parent.parent.parent
+sys.path.append(str(ROOT)) #root
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 import argparse
@@ -15,7 +18,7 @@ import torch
 import torchvision
 from scipy import stats
 
-from utils import change_speed_v2,event2anim,get_random_subset,save_args,ListNMNIST,load_yaml,save_results,calculate_accuracy
+from experiment.utils import change_speed_v2,event2anim,get_random_subset,save_args,ListNMNIST,load_yaml,save_results,calculate_accuracy
 from src.ersnn_v2 import ERSNNv2
 
 
@@ -71,107 +74,6 @@ class RandomBatchSampler:
 
 
 
-
-def save_gamma_videos(gamma, inputs, save_dir, file_name, fr_trj, scale=9):
-    """
-    gamma: [timestep x channel x h x w] のサイズの動画データ
-    inputs: [timestep x h_i x w_i] のサイズの入力データ
-    save_dir: 保存先ディレクトリ
-    file_name: ファイル名
-    fr_trj: 描画する軌跡データ
-    scale: 描画領域の拡大倍率
-    """
-    import subprocess
-    import os
-    import cv2
-    import numpy as np
-
-    # video shape: [timestep x channel x h x w]
-    timestep, channel, h, w = gamma.shape
-    assert h == w, "Height and width must be equal (square data)."
-    
-    # inputs shape: [timestep x h_i x w_i]
-    _, h_i, w_i = inputs.shape
-    assert h_i == w_i, "Height and width of inputs must be equal (square data)."
-    
-    # Apply scaling
-    h_scaled = int(h * scale)
-    left_width = int(2 * h_scaled / 3)
-    color_bar_width = int(h_scaled / 6)
-    total_width = int(left_width + h_scaled + color_bar_width)  # Total width is now 2/3*h_scaled + h_scaled + h_scaled/6
-    
-    # Define the codec and create VideoWriter object
-    fourcc = cv2.VideoWriter_fourcc(*'XVID')
-    tmpout = str(save_dir / "tmp.avi")
-    out = cv2.VideoWriter(tmpout, fourcc, 20.0, (total_width, h_scaled))
-    
-    grid_size = int(np.sqrt(channel))  # Assuming channel is a perfect square (e.g., 16 -> 4x4)
-    cell_size = h_scaled // grid_size  # Size of each cell in the grid
-    
-    # Create a color bar
-    color_bar = np.linspace(255, 0, h_scaled).astype(np.uint8)  # Reverse the color bar
-    color_bar = np.tile(color_bar, (color_bar_width, 1)).T
-    color_bar = cv2.applyColorMap(color_bar, cv2.COLORMAP_JET)
-    
-    for t in range(timestep):
-        frame = np.zeros((h_scaled, total_width, 3), dtype=np.uint8)  # Frame size is now (h_scaled, total_width)
-        
-        # Left region (original)
-        # Upper 2/3h region (inputs)
-        upper_region = np.zeros((2*h_scaled//3, left_width, 3), dtype=np.uint8)
-        input_frame = inputs[t, :, :].astype(np.float32)
-        input_frame = cv2.normalize(input_frame, None, 0, 255, cv2.NORM_MINMAX)
-        input_frame = cv2.applyColorMap(input_frame.astype(np.uint8), cv2.COLORMAP_JET)
-        input_frame_resized = cv2.resize(input_frame, (left_width, 2*h_scaled//3))
-        upper_region = input_frame_resized
-        frame[:2*h_scaled//3, :left_width, :] = upper_region
-        
-        # Lower 1/3h region (only fr_trj)
-        lower_region = np.zeros((h_scaled//3, left_width, 3), dtype=np.uint8)
-        fr_t = [fr_trj[step] for step in range(t)]
-        max_fr_trj = max(fr_trj) if max(fr_trj) != 0 else 1  # Avoid division by zero
-        for i in range(1, len(fr_t)):
-            if fr_t[i - 1] is not None and fr_t[i] is not None:
-                cv2.line(lower_region, 
-                         (int((i - 1) * left_width / timestep), h_scaled//3 - int(fr_t[i - 1] / max_fr_trj * h_scaled//3)),
-                         (int(i * left_width / timestep), h_scaled//3 - int(fr_t[i] / max_fr_trj * h_scaled//3)), 
-                         (0, 255, 0), 1)  # Use bright color and thicker line
-        frame[2*h_scaled//3:, :left_width, :] = lower_region
-        
-        # Middle region (new h x h region)
-        for c in range(channel):
-            heatmap = gamma[t, c, :, :]
-            heatmap = cv2.normalize(heatmap, None, 0, 255, cv2.NORM_MINMAX)
-            heatmap = cv2.applyColorMap(heatmap.astype(np.uint8), cv2.COLORMAP_JET)
-            
-            row = c // grid_size
-            col = c % grid_size
-            heatmap_resized = cv2.resize(heatmap, (cell_size, cell_size))
-            frame[row*cell_size:(row+1)*cell_size, left_width+col*cell_size:left_width+(col+1)*cell_size, :] = heatmap_resized
-        
-        # Right region (new h x 1/6h region)
-        frame[:, left_width + h_scaled:left_width + h_scaled + color_bar_width, :] = color_bar
-        
-        # Write the frame
-        out.write(frame)
-    
-    # Release everything if job is finished
-    out.release()
-    cv2.destroyAllWindows()
-
-    # ffmpegを使用して動画を再エンコード
-    file_name = file_name + ".mp4" if not ".mp4" in file_name else file_name
-    ffmpeg_command = [
-        'ffmpeg', '-y', '-i', tmpout,
-        '-pix_fmt', 'yuv420p', '-vcodec', 'libx264',
-        '-crf', '23', '-preset', 'medium', str(save_dir / file_name)
-    ]
-    subprocess.run(ffmpeg_command)
-    # 一時ファイルを削除
-    os.remove(tmpout)
-
-
-
 def timestep2frame_speed(new_events,ts_speed_trj,window_size=1400):
     """
     タイムスタンプでの速度倍率リストをフレームでの速度倍率リストに変換する関数
@@ -202,6 +104,38 @@ def timestep2frame_speed(new_events,ts_speed_trj,window_size=1400):
     return frame_speed_trj
 
 
+
+def plot_fr_trj(fr,save_dir:Path,file_name):
+    import matplotlib.pyplot as plt
+    # スタイルの設定
+    plt.style.use('fivethirtyeight')
+
+    # フォントの設定
+    plt.rcParams['font.family'] = 'serif'
+    # 背景色の設定
+    plt.rcParams['axes.facecolor'] = 'white'
+    plt.rcParams['savefig.facecolor'] = 'white'
+
+    fig=plt.figure()
+    plt.plot(fr)
+    fr_mean=np.mean(fr)
+    fr_mean_plt=np.ones_like(fr)*fr_mean
+    plt.plot(fr_mean_plt,ls="--")
+    # 平均値をテキストで描画
+    plt.text(0.5, 0.5, f"Mean: {fr_mean}", transform=plt.gca().transAxes, fontsize=12, verticalalignment='center', horizontalalignment='center')
+    plt.title(f"{file_name} fr trj")
+
+    # レイアウトの自動調整
+    plt.tight_layout()
+    plt.gca().spines['top'].set_color('white')
+    plt.gca().spines['right'].set_color('white')
+    plt.gca().spines['left'].set_color('white')
+    plt.gca().spines['bottom'].set_color('white')
+
+    plt.savefig(str(save_dir/file_name)+".png")
+    plt.close()
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--target', type=str,help="各モデルが入ったディレクトリ",required=True)
@@ -220,7 +154,7 @@ def main():
 
 
     #>> テストデータの準備 >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    datapath=Path(__file__).parent.parent.parent/"original_data"
+    datapath=ROOT/"original_data"
     testset = tonic.datasets.NMNIST(save_to=str(datapath), train=False)
     # for i,t in enumerate(testset):
     #     print(f"idx[{i}] label:",t[1])
@@ -269,9 +203,7 @@ def main():
             beta_snn.load_state_dict(torch.load(str(Path(args.target)/dir_name/"result/phase2_models/model_final.pth")))
             beta_snn.eval()
             models["ersnn-v2"]={"model":beta_snn}
-            models["ersnn-v2"]["gamma-trj"]={}
             models["ersnn-v2"]["fr-trj"]={}
-            models["ersnn-v2"]["inputs"]={}
     #<< モデルの準備 <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 
@@ -290,11 +222,7 @@ def main():
 
             for key,item in models.items():
                 if key=="ersnn-v2":
-                    _,gamma=item["model"].get_internal_params(inputs,is_beta=False)
-                    # print("out shape:",out.shape,"target:", target)
                     for i,label in enumerate(target):
-                        print(gamma[:,i].shape)
-                        item["gamma-trj"][label.item()]=torch.squeeze(gamma[:,i]).to("cpu").numpy() #各ラベルのγ時系列
                         
                         #timestepごとの空間方向のfiring rateを記録する
                         fr_trj=[]
@@ -302,7 +230,6 @@ def main():
                             fr_trj.append(torch.mean(sp_t).item())
                         item["fr-trj"][label.item()]=fr_trj
 
-                        item["inputs"][label.item()]=(1.5*inputs[:,i,0]+0.5*inputs[:,i,1]-1).to("cpu").numpy()
 
     print("\033[92mdone\033[0m")
     #<< テスト <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
@@ -310,12 +237,10 @@ def main():
 
     for data in testset:
         label=data[1]
-        save_gamma_videos(
-            gamma=models["ersnn-v2"]["gamma-trj"][label],
-            inputs=models["ersnn-v2"]["inputs"][label],
-            save_dir=savepath/"gamma-videos",
+        plot_fr_trj(
+            fr=models["ersnn-v2"]["fr-trj"][label],
+            save_dir=savepath,
             file_name=f"label{label}",
-            fr_trj=models["ersnn-v2"]["fr-trj"][label],
         )
 if __name__=="__main__":
     main()
