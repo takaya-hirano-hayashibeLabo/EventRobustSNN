@@ -117,16 +117,30 @@ def main():
     # 学習ループの最後にloss_listをプロットして保存
     import matplotlib.pyplot as plt
     loss_array = np.array(loss_list).squeeze()
-    plt.figure(figsize=(12, 8))
-    plt.plot(loss_array[:, 0], label='Loss Pred')
-    plt.plot(loss_array[:, 1], label='Loss Beta')
-    plt.plot(loss_array[:, 2], label='Loss Gamma')
-    plt.xlabel('Iteration')
-    plt.ylabel('Loss')
-    plt.legend()
-    plt.title('Training Losses')
+    fig, axs = plt.subplots(3, 1, figsize=(8, 9))
+
+    axs[0].plot(loss_array[:, 0], label='Loss Pred')
+    axs[0].set_xlabel('Iteration')
+    axs[0].set_ylabel('Loss Pred')
+    axs[0].legend()
+    axs[0].set_title('Prediction Loss')
+
+    axs[1].plot(loss_array[:, 1], label='Loss Beta')
+    axs[1].set_xlabel('Iteration')
+    axs[1].set_ylabel('Loss Beta')
+    axs[1].legend()
+    axs[1].set_title('Beta Loss')
+
+    axs[2].plot(loss_array[:, 2], label='Loss Gamma')
+    axs[2].set_xlabel('Iteration')
+    axs[2].set_ylabel('Loss Gamma')
+    axs[2].legend()
+    axs[2].set_title('Gamma Loss')
+
+    plt.tight_layout()
     plt.savefig(resultpath / 'loss_plot.png')
     plt.close()
+
 
 if __name__ == '__main__':
     main()

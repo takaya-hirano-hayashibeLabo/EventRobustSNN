@@ -344,13 +344,16 @@ class ERSNNv2(nn.Module):
 
         loss_pred:torch.Tensor=criterion(out_spike,target)
 
-        #>> ここの次元操作が上手く行ってない >>
-        rho=torch.mean(in_spike,(1,in_spike.ndim-1)) #timestepごとの空間イベント密度を計算
-        #>> ここの次元操作が上手く行ってない >>
+        mean_dim=tuple(range(2,in_spike.ndim)) #timestepとbatch以外の軸を平均する
+        rho=torch.mean(in_spike,mean_dim) #timestepごとの空間イベント密度を計算
 
-        print("rho shape: ",rho.shape)
-        loss_beta:torch.Tensor=self.a1* torch.mean( (beta-self.beta_lstm_range_out*(1-rho/self.rho_mean))**2 )
-        loss_gamma=self.a2* torch.mean( ( torch.mean(gamma, (1,gamma.ndim-1)) - self.gamma_max*(1-rho/self.rho_max) )**2 )
+        # print("rho shape: ",rho.shape)
+        # print("delta beta:", (beta-self.snn_init_beta).shape)
+        # print("target delta beta: ",(self.beta_lstm_range_out*(1-rho/self.rho_mean)).shape )
+        
+        # 式はこちら https://www.notion.so/7b63c2365b9643e8b77bfa99ed46171b?pvs=4#88958f6906be4b8eaaefaea859cdef44
+        loss_beta:torch.Tensor=self.a1* torch.mean( ( torch.squeeze(beta-self.snn_init_beta) - self.beta_lstm_range_out*(1-rho/self.rho_mean) )**2 )
+        loss_gamma=self.a2* torch.mean( ( torch.mean(gamma, mean_dim) - self.gamma_max*(1-rho/self.rho_max) )**2 )
 
         result={
             "loss_pred":loss_pred,
