@@ -26,25 +26,6 @@ def main():
     dirs=os.listdir(target_dir)
     # print(dirs)
 
-    # data_table = []
-    # for dir_name in dirs:
-    #     json_path = target_dir / dir_name / 'results.json'
-    #     args_path = target_dir / dir_name / 'args.json'
-    #     if json_path.exists() and args_path.exists():
-    #         with open(json_path, 'r') as f:
-    #             results_data = json.load(f)
-    #         with open(args_path, 'r') as f:
-    #             args_data = json.load(f)
-    #         data_table.append({
-    #             # 'dir_name': dir_name,
-    #             'speed': "-".join([str(s) for s in args_data['speed']]),  # speed
-    #             'lstm_acc_mean': results_data['lstm']['acc_mean'],
-    #             'lstm_acc_std': results_data['lstm']['acc_std'],
-    #             'csnn_acc_mean': results_data['csnn']['acc_mean'],
-    #             'csnn_acc_std': results_data['csnn']['acc_std'],
-    #             'beta_snn_acc_mean': results_data['beta-snn']['acc_mean'],
-    #             'beta_snn_acc_std': results_data['beta-snn']['acc_std']
-    #         })
 
     data_table = []
     for dir_name in dirs:
@@ -108,12 +89,6 @@ def main():
     cmap = matplotlib.colormaps.get_cmap('viridis')
     
     speeds = df_normalized['speed'].values
-    # lstm_acc_means = df_normalized['lstm_acc_mean'].values
-    # lstm_acc_stds = df_normalized['lstm_acc_std'].values
-    # csnn_acc_means = df_normalized['csnn_acc_mean'].values
-    # csnn_acc_stds = df_normalized['csnn_acc_std'].values
-    # beta_snn_acc_means = df_normalized['beta_snn_acc_mean'].values
-    # beta_snn_acc_stds = df_normalized['beta_snn_acc_std'].values
 
     x = np.arange(len(speeds))  # 速度のインデックス
     width = 0.2  # 各棒の幅
@@ -122,6 +97,10 @@ def main():
 
     # 各モデルの棒グラフを描画
     for i, key in enumerate(results_data.keys()):
+
+        if key=="lstm":
+            continue
+
         means = df_normalized[f'{key}_acc_mean'].values
         stds = df_normalized[f'{key}_acc_std'].values
         ax.bar(x + i * width, means, width, label=key.upper(), yerr=stds, capsize=5, color=cmap(i / len(results_data)))

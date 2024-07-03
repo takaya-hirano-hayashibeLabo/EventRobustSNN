@@ -20,8 +20,86 @@ import numpy as np
 from tqdm import tqdm
 import pandas as pd
 
-from utils import load_yaml,load_hdf5,get_minibatch,plot_results,cut_string_end,TERMINAL_WIDTH
+from train.utils import load_yaml,load_hdf5,get_minibatch,cut_string_end,TERMINAL_WIDTH
 from src.ersnn_v2 import ERSNNv2
+
+
+def plot_results(df, result_png_path):
+    import matplotlib.pyplot as plt
+
+    # スタイルの設定
+    plt.style.use('fivethirtyeight')
+    # フォントの設定
+    plt.rcParams['font.family'] = 'serif'
+    # 背景色の設定
+    plt.rcParams['axes.facecolor'] = 'white'
+    plt.rcParams['savefig.facecolor'] = 'white'
+
+    fig, axs = plt.subplots(2, 2, figsize=(15, 10), sharex=True)
+    
+    # Total Loss
+    axs[0, 0].plot(df['ep'], df['train_loss_total'], label='Train Total Loss')
+    axs[0, 0].fill_between(df['ep'], df['train_loss_total'] - df['train_loss_total_std'], df['train_loss_total'] + df['train_loss_total_std'], alpha=0.2)
+    axs[0, 0].plot(df['ep'], df['test_loss_total'], label='Test Total Loss')
+    axs[0, 0].fill_between(df['ep'], df['test_loss_total'] - df['test_loss_total_std'], df['test_loss_total'] + df['test_loss_total_std'], alpha=0.2)
+    axs[0, 0].set_title('Total Loss')
+    axs[0, 0].legend()
+    
+    # Prediction Loss
+    axs[0, 1].plot(df['ep'], df['train_loss_pred'], label='Train Prediction Loss')
+    axs[0, 1].fill_between(df['ep'], df['train_loss_pred'] - df['train_loss_pred_std'], df['train_loss_pred'] + df['train_loss_pred_std'], alpha=0.2)
+    axs[0, 1].plot(df['ep'], df['test_loss_pred'], label='Test Prediction Loss')
+    axs[0, 1].fill_between(df['ep'], df['test_loss_pred'] - df['test_loss_pred_std'], df['test_loss_pred'] + df['test_loss_pred_std'], alpha=0.2)
+    axs[0, 1].set_title('Prediction Loss')
+    axs[0, 1].legend()
+    
+    # Beta Loss
+    axs[1, 0].plot(df['ep'], df['train_loss_beta'], label='Train Beta Loss')
+    axs[1, 0].fill_between(df['ep'], df['train_loss_beta'] - df['train_loss_beta_std'], df['train_loss_beta'] + df['train_loss_beta_std'], alpha=0.2)
+    axs[1, 0].plot(df['ep'], df['test_loss_beta'], label='Test Beta Loss')
+    axs[1, 0].fill_between(df['ep'], df['test_loss_beta'] - df['test_loss_beta_std'], df['test_loss_beta'] + df['test_loss_beta_std'], alpha=0.2)
+    axs[1, 0].set_title('Beta Loss')
+    axs[1, 0].legend()
+    
+    # Gamma Loss
+    axs[1, 1].plot(df['ep'], df['train_loss_gamma'], label='Train Gamma Loss')
+    axs[1, 1].fill_between(df['ep'], df['train_loss_gamma'] - df['train_loss_gamma_std'], df['train_loss_gamma'] + df['train_loss_gamma_std'], alpha=0.2)
+    axs[1, 1].plot(df['ep'], df['test_loss_gamma'], label='Test Gamma Loss')
+    axs[1, 1].fill_between(df['ep'], df['test_loss_gamma'] - df['test_loss_gamma_std'], df['test_loss_gamma'] + df['test_loss_gamma_std'], alpha=0.2)
+    axs[1, 1].set_title('Gamma Loss')
+    axs[1, 1].legend()
+    
+    for ax in axs.flat:
+        ax.set_xlabel('Epoch')
+        ax.set_ylabel('Loss')
+        ax.spines['top'].set_color('white')
+        ax.spines['right'].set_color('white')
+        ax.spines['left'].set_color('white')
+        ax.spines['bottom'].set_color('white')
+
+    plt.tight_layout()
+    plt.savefig(result_png_path/"loss.png")
+
+
+    # Plot accuracy in a separate figure
+    fig_acc, ax_acc = plt.subplots(figsize=(10, 5))
+    ax_acc.plot(df['ep'], df['train_acc'], label='Train Accuracy')
+    ax_acc.fill_between(df['ep'], df['train_acc'] - df['train_acc_std'], df['train_acc'] + df['train_acc_std'], alpha=0.2)
+    ax_acc.plot(df['ep'], df['test_acc'], label='Test Accuracy')
+    ax_acc.fill_between(df['ep'], df['test_acc'] - df['test_acc_std'], df['test_acc'] + df['test_acc_std'], alpha=0.2)
+    ax_acc.set_title('Accuracy')
+    ax_acc.set_xlabel('Epoch')
+    ax_acc.set_ylabel('Accuracy')
+    ax_acc.legend()
+    ax_acc.spines['top'].set_color('white')
+    ax_acc.spines['right'].set_color('white')
+    ax_acc.spines['left'].set_color('white')
+    ax_acc.spines['bottom'].set_color('white')
+
+    plt.tight_layout()
+    plt.savefig(result_png_path/"acc.png")
+
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -103,7 +181,7 @@ def main():
             loss.backward()
             optim.step()
 
-            train_loss_list+=[loss.item()]
+            train_loss_list+=[[loss.item(),loss_pred.item(),loss_beta.item(),loss_gamma.item()]]
             train_acc_list+=[SF.accuracy_rate(out,target)]
 
             if min([len(files) for files in train_files])<minibatch_j:
@@ -112,10 +190,11 @@ def main():
                 break
 
         # エポックごとの損失と精度の平均と標準偏差を計算
-        train_loss_mean = np.mean(train_loss_list)
-        train_loss_std = np.std(train_loss_list)
+        train_loss_mean = np.mean(train_loss_list,axis=0)
+        train_loss_std = np.std(train_loss_list,axis=0)
         train_acc_mean = np.mean(train_acc_list)
         train_acc_std = np.std(train_acc_list)
+
 
         #>> test >>
         with torch.no_grad():
@@ -152,7 +231,7 @@ def main():
                 acc=SF.accuracy_rate(out,target)
                 test_acc_list+=[acc]
                 loss:torch.Tensor=criterion(out,target)
-                test_loss_list+=[loss.item()]
+                test_loss_list+=[[loss.item(),loss_pred.item(),loss_beta.item(),loss_gamma.item()]]
 
                 if min([len(files) for files in test_files])<minibatch_j:
                     break
@@ -160,25 +239,45 @@ def main():
                     break
                 
             test_acc_mean,test_acc_std=np.mean(test_acc_list),np.std(test_acc_list)
-            test_loss_mean,test_loss_std=np.mean(test_loss_list),np.std(test_loss_list)
+            test_loss_mean,test_loss_std=np.mean(test_loss_list,axis=0),np.std(test_loss_list,axis=0)
         #>> test >>
 
-        print(f"Train Loss: {train_loss_mean:.2f} ± {train_loss_std:.2f}, Train Accuracy: {train_acc_mean:.2f} ± {train_acc_std:.2f}, Test Loss: {test_loss_mean:.2f} ± {test_loss_std:.2f}, Test Acc: {test_acc_mean:.2f} ± {test_acc_std:.2f}")
+        print(cut_string_end("="*200,TERMINAL_WIDTH))
+        print(f"Train Loss: Total: {train_loss_mean[0]:.2f} ± {train_loss_std[0]:.2f},\n"
+              f"            Pred : {train_loss_mean[1]:.2f} ± {train_loss_std[1]:.2f},\n"
+              f"            Beta : {train_loss_mean[2]:.2f} ± {train_loss_std[2]:.2f},\n"
+              f"            Gamma: {train_loss_mean[3]:.2f} ± {train_loss_std[3]:.2f},\n"
+              f"Train Accuracy   : {train_acc_mean:.2f} ± {train_acc_std:.2f},\n"
+              "----------------------------"+"\n"
+              f"Test Loss: Total: {test_loss_mean[0]:.2f} ± {test_loss_std[0]:.2f},\n"
+              f"           Pred : {test_loss_mean[1]:.2f} ± {test_loss_std[1]:.2f},\n"
+              f"           Beta : {test_loss_mean[2]:.2f} ± {test_loss_std[2]:.2f},\n"
+              f"           Gamma: {test_loss_mean[3]:.2f} ± {test_loss_std[3]:.2f},\n"
+              f"Test Accuracy   : {test_acc_mean:.2f} ± {test_acc_std:.2f}")
+        print(cut_string_end("="*200,TERMINAL_WIDTH))
 
-        #>> 結果の保存 >>
-        result_table_phase2+=[[
-             ep,train_loss_mean,train_loss_std,train_acc_mean,train_acc_std,
-             test_loss_mean,test_loss_std,test_acc_mean,test_acc_std
-             ]]
+
+        result_table_phase2+=[
+            [ep]+train_loss_mean.tolist()+train_loss_std.tolist()+
+            [train_acc_mean, train_acc_std]+test_loss_mean.tolist()+test_loss_std.tolist()+
+            [test_acc_mean, test_acc_std]
+        ]        
+        
         result_table_db=pd.DataFrame(
             result_table_phase2,
             columns=[
                 "ep",
-                "train_loss_mean","train_loss_std","train_acc_mean","train_acc_std",
-                "test_loss_mean","test_loss_std","test_acc_mean","test_acc_std"
-                ])
+                "train_loss_total","train_loss_pred","train_loss_beta","train_loss_gamma",
+                "train_loss_total_std","train_loss_pred_std","train_loss_beta_std","train_loss_gamma_std",
+                "train_acc","train_acc_std",  # 修正: "train_std" を "train_acc_std" に変更
+                "test_loss_total","test_loss_pred","test_loss_beta","test_loss_gamma",
+                "test_loss_total_std","test_loss_pred_std","test_loss_beta_std","test_loss_gamma_std",
+                "test_acc","test_acc_std"
+            ]
+        )
+        
         result_table_db.to_csv(resultpath/"result_phase2.csv",index=False)
-        plot_results(resultpath/"result_phase2.csv",resultpath/"result_phase2.png")
+        plot_results(result_table_db,resultpath)
         #>> 結果の保存 >>
 
 
