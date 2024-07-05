@@ -235,11 +235,18 @@ def generate_multi_dataset():
         print("\033[92mdone\033[0m")
 
 
-def generate_multi_dataframe(datatype:str,data_rate:float):
+def generate_multi_dataframe(datatype:str,data_rate:float,resize_to=(32,32), time_window=1400, speed_list=[1.0], sequence_size=100):
     """
     frameデータとして保存する関数  
     学習時はミニバッチごとにディレクトリから集める  
     そうしないと, データがでかすぎてメモリが死ぬ
+
+    :param <str>datatype: {NMNIST, DVSGesture}
+    :param data_rate: 何割にデータを間引くか
+    :param <tuple>resize_to: resize後のデータの(height x width)
+    :param time_window: 1フレームあたり何time_window含むか. 単位はイベントのタイムスタンプによる
+    :param <list>speed_list: 生成するデータの速度倍率のリスト
+    :param sequence_size: フレーム変換後のデータのシーケンス長さ. この長さ分学習に時系列として入力する
     """
 
     original_datapath=str(Path(__file__).parent.parent/"original_data")
@@ -267,17 +274,17 @@ def generate_multi_dataframe(datatype:str,data_rate:float):
 
     transform=transforms.Compose([
             transforms.Denoise(filter_time=10000),
-            transforms.ToFrame(sensor_size=sensor_size, time_window=1400), #time_window msごとのデータをフレームデータに変換する
+            transforms.ToFrame(sensor_size=sensor_size, time_window=time_window), #time_window msごとのデータをフレームデータに変換する
             torch.from_numpy,
-            torchvision.transforms.Resize((32, 32),antialias=True)
+            torchvision.transforms.Resize(resize_to,antialias=True)
         ])
     # cache_transform = tonic.transforms.Compose([torch.from_numpy,
     #                                     torchvision.transforms.Resize((32, 32)),])
 
     savepath=Path(__file__).parent.parent / "framedata"
 
-    alpha_list=[1.2,1.0,0.8] #この速度のデータを保存する
-    window_size=100 #2.0倍のwindowサイズを基準とする
+    alpha_list=speed_list #この速度のデータを保存する
+    window_size=sequence_size 
     for i,a in enumerate(alpha_list):
         print("\n\033[96m"+cut_string_end(
             f"PROCESS [{i+1}/{len(alpha_list)}] @ALPHA={a}"+"="*TERMINAL_WIDTH,size=TERMINAL_WIDTH)+"\033[0m"
@@ -428,6 +435,10 @@ def main():
     parser=argparse.ArgumentParser()
     parser.add_argument("--datatype",default="NMNIST")
     parser.add_argument("--data_rate",default=0.1,type=float)
+    parser.add_argument("--resize_to", nargs="+",type=int,required=True,help="変換後のフレームサイズ")
+    parser.add_argument("--time_window",type=int,default=1400,help="eventをtoFrameするときのtime_window")
+    parser.add_argument("--speed_list",nargs="+",type=float,required=True,help="生成する速度倍率リスト")
+    parser.add_argument("--sequence_size",default=100,type=int,help="最終的に生成する学習用フレームデータのシーケンス長")
     args=parser.parse_args()
 
 
@@ -438,7 +449,13 @@ def main():
         json.dump(args_dict, f, indent=4)
 
 
-    generate_multi_dataframe(args.datatype,args.data_rate)
+    generate_multi_dataframe(
+        args.datatype,args.data_rate,
+        resize_to=tuple(args.resize_to),
+        time_window=args.time_window,
+        speed_list=args.speed_list,
+        sequence_size=args.sequence_size
+    )
 
 
 if __name__=="__main__":

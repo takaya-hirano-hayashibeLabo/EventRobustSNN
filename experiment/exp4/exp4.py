@@ -70,6 +70,16 @@ class RandomBatchSampler:
         return np.stack(padded_inputs)
 
 
+def normalize(data, input_range=None, output_range=(0, 1)):
+    if input_range is None:
+        min_val = np.min(data)
+        max_val = np.max(data)
+    else:
+        min_val, max_val = input_range
+
+    out_min, out_max = output_range
+
+    return ((data - min_val) / (max_val - min_val)) * (out_max - out_min) + out_min
 
 
 def save_gamma_videos(gamma, inputs, save_dir, file_name, fr_trj, scale=9):
@@ -85,6 +95,9 @@ def save_gamma_videos(gamma, inputs, save_dir, file_name, fr_trj, scale=9):
     import os
     import cv2
     import numpy as np
+
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
 
     # video shape: [timestep x channel x h x w]
     timestep, channel, h, w = gamma.shape
@@ -129,6 +142,8 @@ def save_gamma_videos(gamma, inputs, save_dir, file_name, fr_trj, scale=9):
         # Lower 1/3h region (only fr_trj)
         lower_region = np.zeros((h_scaled//3, left_width, 3), dtype=np.uint8)
         fr_t = [fr_trj[step] for step in range(t)]
+        # gamma_mean=np.mean(gamma,axis=tuple(range(1,gamma.ndim)))
+        # fr_t = [gamma_mean[step] for step in range(t)]
         max_fr_trj = max(fr_trj) if max(fr_trj) != 0 else 1  # Avoid division by zero
         for i in range(1, len(fr_t)):
             if fr_t[i - 1] is not None and fr_t[i] is not None:
@@ -139,9 +154,13 @@ def save_gamma_videos(gamma, inputs, save_dir, file_name, fr_trj, scale=9):
         frame[2*h_scaled//3:, :left_width, :] = lower_region
         
         # Middle region (new h x h region)
+
+        # 全フレームの最大値と最小値を計算
+        global_min = 0#np.min(gamma)
+        global_max = 1#np.max(gamma)        
         for c in range(channel):
             heatmap = gamma[t, c, :, :]
-            heatmap = cv2.normalize(heatmap, None, 0, 255, cv2.NORM_MINMAX)
+            heatmap = normalize(heatmap,input_range=(global_min,global_max),output_range=(0,255))
             heatmap = cv2.applyColorMap(heatmap.astype(np.uint8), cv2.COLORMAP_JET)
             
             row = c // grid_size
@@ -150,7 +169,26 @@ def save_gamma_videos(gamma, inputs, save_dir, file_name, fr_trj, scale=9):
             frame[row*cell_size:(row+1)*cell_size, left_width+col*cell_size:left_width+(col+1)*cell_size, :] = heatmap_resized
         
         # Right region (new h x 1/6h region)
+        color_bar = np.linspace(1, 0, h_scaled).astype(np.float32)  # Reverse the color bar
+        color_bar = np.tile(color_bar, (color_bar_width, 1)).T
+        color_bar = cv2.normalize(color_bar, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_32F)
+        color_bar = cv2.applyColorMap(color_bar.astype(np.uint8), cv2.COLORMAP_JET)
         frame[:, left_width + h_scaled:left_width + h_scaled + color_bar_width, :] = color_bar
+        
+        # Add min and max text to the color bar
+        min_val, max_val = 0, 1  # Assuming the normalized range is [0, 1]
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        font_scale = 0.5
+        color = (255, 255, 255)  # White color for text
+        thickness = 1
+
+        # Position for min and max text
+        min_pos = (left_width + h_scaled + color_bar_width, h_scaled - 5)
+        max_pos = (left_width + h_scaled + color_bar_width, 15)
+
+        cv2.putText(frame, f'{min_val:.2f}', min_pos, font, font_scale, color, thickness, cv2.LINE_AA)
+        cv2.putText(frame, f'{max_val:.2f}', max_pos, font, font_scale, color, thickness, cv2.LINE_AA)
+        
         
         # Write the frame
         out.write(frame)
@@ -317,5 +355,7 @@ def main():
             file_name=f"label{label}",
             fr_trj=models["ersnn-v2"]["fr-trj"][label],
         )
+
+        print(np.mean(models["ersnn-v2"]["gamma-trj"][label],axis=(1,2,3)))
 if __name__=="__main__":
     main()

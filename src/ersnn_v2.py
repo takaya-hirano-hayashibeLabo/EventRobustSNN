@@ -221,8 +221,16 @@ class ERSNNv2(nn.Module):
             self.rho_mean=loss_conf["rho-mean"] #平均イベント密度
             self.rho_max=loss_conf["rho-max"] #最大イベント密度
             self.gamma_max=loss_conf["gamma-max"] #γの最大平均値
+            self.k_gamma=loss_conf["k-gamma"] if "k-gamma" in loss_conf.keys() else 14 #シグモイドのスケーリング係数
+            self.s_gamma=loss_conf["s-gamma"] if "s-gamma" in loss_conf.keys() else -7 #tanhのシフト項
+            self.p_gamma=loss_conf["p-gamma"] if "p-gamma" in loss_conf.keys() else 1 #べき定数
+            self.k_beta=loss_conf["k-beta"] if "k-beta" in loss_conf.keys() else 6 #tanhのスケーリング
+            self.s_beta=loss_conf["s-beta"] if "s-beta" in loss_conf.keys() else -3 #tanhのシフト項
         #<< 目的関数のハイパラ設定 <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
+
+    def _sigmoid(self,x,k,s):
+        return 1.0/(1.0 + torch.exp(-(k*x+s)))
 
 
     def forward(self,spike,is_beta=False,is_gamma=False, return_internal_param=False):
@@ -289,7 +297,7 @@ class ERSNNv2(nn.Module):
             gammas=torch.stack(gammas,dim=0) #[T x batch x out_c x out_h x out_w]
 
         elif not is_gamma:
-            gammas=torch.ones(T,batch,*self.snn_gamma_size)
+            gammas=torch.ones(T,batch,*self.snn_gamma_size).to(self.device)
         #<< CNNによるgammaの推論 <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 
@@ -352,8 +360,14 @@ class ERSNNv2(nn.Module):
         # print("target delta beta: ",(self.beta_lstm_range_out*(1-rho/self.rho_mean)).shape )
         
         # 式はこちら https://www.notion.so/7b63c2365b9643e8b77bfa99ed46171b?pvs=4#88958f6906be4b8eaaefaea859cdef44
-        loss_beta:torch.Tensor=self.a1* torch.mean( ( torch.squeeze(beta-self.snn_init_beta) - self.beta_lstm_range_out*(1-rho/self.rho_mean) )**2 )
-        loss_gamma=self.a2* torch.mean( ( torch.mean(gamma, mean_dim) - self.gamma_max*(1-rho/self.rho_max) )**2 )
+        # loss_beta:torch.Tensor=self.a1* torch.mean( ( torch.squeeze(beta-self.snn_init_beta) - self.beta_lstm_range_out*(1-rho/self.rho_mean) )**2 )
+        loss_beta:torch.Tensor=self.a1* torch.mean(
+             ( torch.squeeze(beta-self.snn_init_beta) - self.beta_lstm_range_out*torch.tanh( self.k_beta*(1-rho/self.rho_mean)+self.s_beta ) )**2
+            ) #tanhでクリップのような関係を学習させる
+        # loss_gamma=self.a2* torch.mean( ( torch.mean(gamma, mean_dim) - self.gamma_max*(1-rho/self.rho_max) )**2 )
+        loss_gamma=self.a2* torch.mean( 
+            ( torch.mean(gamma**self.p_gamma, mean_dim) - (self.gamma_max**self.p_gamma)*self._sigmoid(rho/self.rho_max, k=self.k_gamma,s=self.s_gamma) )**2 
+            ) # x=1で0.96257
 
         result={
             "loss_pred":loss_pred,
