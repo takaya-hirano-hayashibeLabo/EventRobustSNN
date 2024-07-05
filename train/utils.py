@@ -137,3 +137,25 @@ def cut_string_end(s, size):
     if size < 0:
         raise ValueError("Size must be non-negative")
     return s[:size] if size <= len(s) else s
+
+
+def pad_sequences(data,time_sequence, device):
+    import torch
+    from torch.nn import functional as F
+    import numpy as np
+
+    # 最も長いtimesequenceの長さを取得
+    max_timesequence = time_sequence
+    
+    # 各データを0パディングしてサイズを揃える
+    padded_data = []
+    for d in data:
+        d=torch.Tensor(np.array(d)) #[timesequence x c x w x h]
+        if not len(d)==max_timesequence:
+            padding_size = (0, 0, 0, 0 ,0,0,0,max_timesequence - d.shape[0])
+            padded_d = F.pad(d, padding_size, "constant", 0)
+            padded_data.append(padded_d)
+        else:
+            padded_data.append(d)
+    
+    return torch.stack(padded_data).to(device)

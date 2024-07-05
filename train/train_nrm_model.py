@@ -12,7 +12,7 @@ import numpy as np
 from tqdm import tqdm
 import pandas as pd
 
-from utils import load_yaml,load_hdf5,get_minibatch,plot_results,cut_string_end,TERMINAL_WIDTH
+from utils import load_yaml,load_hdf5,get_minibatch,plot_results,cut_string_end,TERMINAL_WIDTH,pad_sequences
 from src.crnn import CRNN,CLSTM
 from src.csnn import CSNN
 
@@ -66,7 +66,7 @@ def main():
     model.to(device)  # ここでモデルをデバイスに移動
     optim=torch.optim.Adam(model.parameters(),lr=train_conf["lr"])
 
-    datadirs=[Path(train_conf["datapath"])/file_name for file_name in os.listdir(Path(train_conf["datapath"]))] #速度ごとのデータpath
+    datadirs=[Path(train_conf["datapath"])/dir_name for dir_name in os.listdir(Path(train_conf["datapath"])) if os.path.isdir(Path(train_conf["datapath"])/dir_name)] #速度ごとのディレクトリパス
     train_files=[os.listdir(datadir/"train") for datadir in datadirs]
     min_data_length=min([len(files) for files in train_files]) #これを1epochに見るデータサイズとする
     minibatch_j=int(minibatch/len(datadirs)) #各speedのminibatch. 全部のdirからminibatchとるとメモリが足りなくなる
@@ -92,7 +92,7 @@ def main():
             #>> 学習データのロード >>
             
             
-            data=torch.Tensor(np.array(data)).to(device)
+            data=pad_sequences(data,train_conf["time_sequence"],device)
             target=torch.Tensor(np.array(target)).to(device)
             data=torch.permute(data,(1,0,2,3,4)) #timestepを一番先頭次元に
             # print("data: ",data.shape,"target: ",target.shape)
@@ -148,7 +148,7 @@ def main():
                     target+=target_j
                 #>> 学習データのロード >>
 
-                data=torch.Tensor(np.array(data)).to(device)
+                data=pad_sequences(data,train_conf["time_sequence"],device)
                 target=torch.Tensor(np.array(target)).to(device)
                 data=torch.permute(data,(1,0,2,3,4)) #timestepを一番先頭次元に
 
